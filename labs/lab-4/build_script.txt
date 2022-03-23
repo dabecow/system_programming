@@ -1,0 +1,4 @@
+gcc -c -o test.o test.c 
+gcc -o test.dll -s -shared test.o
+gcc -c -o main.o main.c
+gcc -o main.exe -s main.o -L. -ltest
