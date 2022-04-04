@@ -11,13 +11,10 @@
 #include <stdio.h>
 #include <windowsx.h>
 
-typedef struct
-{
-    LPTSTR *InfData;
-} MyClipboardData;
-
+HBITMAP hbitmap;
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-void putInBuffer(HWND hwnd);
+void putInBuffer(HWND hwnd, LPWSTR filePath);
+void openFile(HWND hwnd);
 void getFromBuffer(HWND hwnd);
 
 int APIENTRY WinMain(HINSTANCE hInstance,
@@ -78,7 +75,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg)
     {
-    case WM_CREATE:
+    case WM_CREATE:{
+    }
         break;
     case WM_CLOSE:
         DestroyWindow(hwnd);
@@ -88,14 +86,36 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case WM_COMMAND:
         if (LOWORD(wParam) == WM_COMMAND_PUT)
         {
-            putInBuffer(hwnd);
+            openFile(hwnd);
+            InvalidateRect(hwnd, NULL, TRUE);
+            putInBuffer(hwnd, NULL);
         }
         else if (LOWORD(wParam) == WM_COMMAND_GET)
         {
             getFromBuffer(hwnd);
         }
         break;
-    case WM_PAINT:
+    case WM_PAINT:{
+        PAINTSTRUCT     ps;
+        HDC             hdc;
+        BITMAP          bitmap;
+        HDC             hdcMem;
+        HGDIOBJ         oldBitmap;
+
+        hdc = BeginPaint(hwnd, &ps);
+
+        hdcMem = CreateCompatibleDC(hdc);
+        oldBitmap = SelectObject(hdcMem, hbitmap);
+
+        GetObject(hbitmap, sizeof(bitmap), &bitmap);
+        BitBlt(hdc, 200, 200, bitmap.bmWidth, bitmap.bmHeight, hdcMem, 0, 0, SRCCOPY);
+
+        SelectObject(hdcMem, oldBitmap);
+        DeleteDC(hdcMem);
+
+        EndPaint(hwnd, &ps);
+        break;
+    }
         break;
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
@@ -109,142 +129,87 @@ void ClientDraw(HWND hwnd, WPARAM wParam, LPARAM lPara)
     EndPaint(hwnd, &ps);
 }
 
-void putInBuffer(HWND hwnd)
+void putInBuffer(HWND hwnd, LPWSTR filePath)
 {
-    HANDLE hBmpFile = CreateFileA("LOVE.bmp", GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-    HANDLE hBmpMappingFile = CreateFileMappingA(
-        hBmpFile,      //описатель файла
-        NULL,          //аттрибуты защиты объекта ядра
-        PAGE_READONLY, //атрибут защиты, присваиваемый
-        // страницам физической памяти
-        0, 0, //максимальный размер файла в
-        // байтах (0 -- размер меньше 4Гб)
-        "BmpFile"); //имя объекта ядра
-    //Проецирование данных файла на адресное пространство процесса
-    LPTSTR sharedBuffer = MapViewOfFile(
-        hBmpMappingFile,     // описатель объекта «проекция файла»
-        FILE_MAP_ALL_ACCESS, // вид доступа к данным
-        0, 0,                // смещение в файле до байта файла данных,
-        //который нужно считать в представлении первым
-        0); // сколько байтов файла данных должно быть
-    //спроецировано на адресное пространство
 
-    UINT format = RegisterClipboardFormat(L"MyClipboardData");
-    //регистрируем наш формат данных
-    MyClipboardData MCD = {.InfData = sharedBuffer};
-    // SendDlgItemMessageA(hwnd, NULL, WM_GETTEXT, 50, (LPARAM)MCD.InfData);
-    if (OpenClipboard(hwnd))
+    OpenClipboard(hwnd);
+    EmptyClipboard();
+
+    SetClipboardData(CF_BITMAP, hbitmap);
+    CloseClipboard();
+}
+
+void openFile(HWND hwnd) {
+    OPENFILENAMEW ofn;       // common dialog box structure
+    TCHAR szFile[260] = { 0 };       // if using TCHAR macros
+
+    // Initialize OPENFILENAME
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = hwnd;
+    ofn.lpstrFile = szFile;
+    ofn.nMaxFile = sizeof(szFile);
+    ofn.lpstrCustomFilter = L"Bitmap\0*.bmp\0";
+    ofn.nFilterIndex = 1;
+    ofn.lpstrFileTitle = NULL;
+    ofn.nMaxFileTitle = 0;
+    ofn.lpstrInitialDir = NULL;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+
+    if (GetOpenFileNameW(&ofn) == TRUE)
     {
-        if (EmptyClipboard())
-        {
-            HGLOBAL hGl;
-            EmptyClipboard();                                             //очищаем буфер
-            hGl = GlobalAlloc(GMEM_DDESHARE, sizeof(MyClipboardData));    //выделим память
-            MyClipboardData *buffer = (MyClipboardData *)GlobalLock(hGl); //запишем данные в память
-            *buffer = MCD;
-            GlobalUnlock(hGl);
-            SetClipboardData(format, hGl);
-            CloseClipboard();
-        }
+        hbitmap = (HBITMAP)LoadImageW(GetModuleHandle(NULL), ofn.lpstrFile, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+        return ofn.lpstrFile;
     }
+
+    return NULL;
 }
 
 void getFromBuffer(HWND hwnd)
 {
-
-    if (OpenClipboard(hwnd))
-    {
-        UINT format = RegisterClipboardFormat(L"MyClipboardData");
-        //вызываем второй раз, чтобы просто получить формат
-        if (IsClipboardFormatAvailable(format))
-        {
-            MyClipboardData MCD;
-            //извлекаем данные из буфера
-            HANDLE hData = GetClipboardData(format);
-            MyClipboardData *buffer = (MyClipboardData *)GlobalLock(hData);
-            //заполняем нашу структуру полученными данными
-            MCD = *buffer;
-            GlobalUnlock(hData);
-            CloseClipboard();
-
-            RECT rect;
-            PAINTSTRUCT ps;
-            GetClientRect(hwnd, &rect);
-            // MessageBoxA(hwnd, MCD.InfData, L"Data", MB_OK);
-            BITMAPFILEHEADER *bFileHeader = (BITMAPFILEHEADER *)MCD.InfData;
-            BITMAPINFO *bInfo = (BITMAPINFO *)((char *)MCD.InfData + 14);
-
-            HDC hdc = BeginPaint(hwnd, &ps);
-            HBITMAP hBmpFile = CreateDIBitmap(hdc, &(bInfo->bmiHeader),
-                                      CBM_INIT, (char *)MCD.InfData + bFileHeader->bfOffBits,
-                                      bInfo, DIB_PAL_COLORS);
-            HDC hMemDC = CreateCompatibleDC(hdc);
-            SelectObject(hMemDC, hBmpFile);
-            StretchBlt(hdc, 0, 0, rect.right, rect.bottom, hMemDC,
-                       0, 0, bInfo->bmiHeader.biWidth, bInfo->bmiHeader.biHeight,
-                       SRCCOPY);
-            ReleaseDC(hdc, hdc);
-            DeleteDC(hMemDC);
-            DeleteObject(hBmpFile);
-        }
-    }
+    OpenClipboard(hwnd);
+    hbitmap = (HBITMAP)GetClipboardData(CF_BITMAP);
     CloseClipboard();
+    InvalidateRect(hwnd, NULL, TRUE);
+
+    // if (OpenClipboard(hwnd))
+    // {
+    //     UINT format = RegisterClipboardFormat(L"MyClipboardData");
+    //     //вызываем второй раз, чтобы просто получить формат
+    //     if (IsClipboardFormatAvailable(format))
+    //     {
+    //         MyClipboardData MCD;
+    //         //извлекаем данные из буфера
+    //         HANDLE hData = GetClipboardData(format);
+    //         MyClipboardData *buffer = (MyClipboardData *)GlobalLock(hData);
+    //         //заполняем нашу структуру полученными данными
+    //         MCD = *buffer;
+    //         GlobalUnlock(hData);
+    //         CloseClipboard();
+
+    //         RECT rect;
+    //         PAINTSTRUCT ps;
+    //         GetClientRect(hwnd, &rect);
+    //         // MessageBoxA(hwnd, MCD.InfData, L"Data", MB_OK);
+    //         BITMAPFILEHEADER *bFileHeader = (BITMAPFILEHEADER *)MCD.InfData;
+    //         BITMAPINFO *bInfo = (BITMAPINFO *)((char *)MCD.InfData + 14);
+            
+    //         HDC hdc = BeginPaint(hwnd, &ps);
+    //         HBITMAP hBmpFile = CreateDIBitmap(hdc, &(bInfo->bmiHeader),
+    //                                           CBM_INIT, (char *)MCD.InfData + bFileHeader->bfOffBits,
+    //                                           bInfo, DIB_PAL_COLORS);
+    //         HDC hMemDC = CreateCompatibleDC(hdc);
+    //         SelectObject(hMemDC, hBmpFile);
+    //         StretchBlt(hdc, 0, 0, rect.right, rect.bottom, hMemDC,
+    //                    0, 0, bInfo->bmiHeader.biWidth, bInfo->bmiHeader.biHeight,
+    //                    SRCCOPY);
+    //         ReleaseDC(hdc, hdc);
+    //         DeleteDC(hMemDC);
+    //         DeleteObject(hBmpFile);
+
+    //         hbitmap = hBmpFile;
+    //         InvalidateRect(hwnd, NULL, TRUE);
+    //     }
+    // }
+    // CloseClipboard();
 }
-
-// void openTextFile()
-// {
-//     HANDLE hTxtMappingFile = OpenFileMappingA(FILE_MAP_READ, FALSE, L"kate.txt");
-//     if (hTxtMappingFile != NULL)
-//     {
-//         //Проецирование данных файла на адресное пространство процесса
-//         LPVOID hTxtMapFileStartAddr = MapViewOfFile(hTxtMappingFile, FILE_MAP_READ, 0, 0, 0);
-//         //Вывод данных из текстового файла в эдит
-//         MessageBoxA()
-//             SetDlgItemTextA(hDlg, IDC_EDIT_TEXT, (char *)hTxtMapFileStartAddr);
-//         //Отключение файла данных от адресного пространства процесса
-//         UnmapViewOfFile(hTxtMapFileStartAddr);
-//         //Закрытие объекта «проекция файла»
-//         CloseHandle(hTxtMappingFile);
-//     }
-// }
-
-// void openImageFile()
-// {
-//     //Открытие объекта ядра «файл»
-//     HANDLE hBmpFile = CreateFileA("LOVE.bmp", GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-//     GetClientRect(GetDlgItem(hDlg, IDC_BMPFRAME), &rect);
-//     //Создание объекта ядра «проекция файла»
-//     hBmpMappingFile = CreateFileMappingA(
-//         hBmpFile,      //описатель файла
-//         NULL,          //аттрибуты защиты объекта ядра
-//         PAGE_READONLY, //атрибут защиты, присваиваемый
-//         // страницам физической памяти
-//         0, 0, //максимальный размер файла в
-//         // байтах (0 -- размер меньше 4Гб)
-//         "BmpFile"); //имя объекта ядра
-//     //Проецирование данных файла на адресное пространство процесса
-//     hBmpMapFileAddr = MapViewOfFile(
-//         hBmpMappingFile, // описатель объекта «проекция файла»
-//         FILE_MAP_READ,   // вид доступа к данным
-//         0, 0,            // смещение в файле до байта файла данных,
-//         //который нужно считать в представлении первым
-//         0); // сколько байтов файла данных должно быть
-//     //спроецировано на адресное пространство
-//     //(0 -- от смещения и до конца файла)
-//     BITMAPFILEHEADER *bFileHeader =
-//         (BITMAPFILEHEADER *)hBmpMapFileAddr;
-//     BITMAPINFO *bInfo = (BITMAPINFO *)((char *)hBmpMapFileAddr + 14);
-//     hdc = GetDC(GetDlgItem(hDlg, IDC_BMPFRAME));
-//     hBmpFile = CreateDIBitmap(hdc, &(bInfo->bmiHeader),
-//                               CBM_INIT, (char *)hBmpMapFileAddr + bFileHeader->bfOffBits,
-//                               bInfo, DIB_PAL_COLORS);
-//     hMemDC = CreateCompatibleDC(hdc);
-//     SelectObject(hMemDC, hBmpFile);
-//     StretchBlt(hdc, 0, 0, rect.right, rect.bottom, hMemDC,
-//                0, 0, bInfo->bmiHeader.biWidth, bInfo->bmiHeader.biHeight,
-//                SRCCOPY);
-//     ReleaseDC(GetDlgItem(hDlg, IDC_BMPFRAME), hdc);
-//     DeleteDC(hMemDC);
-//     DeleteObject(hBmpFile);
-//     return (INT_PTR)TRUE;
-// }

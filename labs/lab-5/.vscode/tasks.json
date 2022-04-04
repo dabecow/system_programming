@@ -36,7 +36,8 @@
 				"${fileBasenameNoExtension}",
 				"${fileDirname}\\build\\${fileBasenameNoExtension}.o",
 				"-L.",
-				"-lgdi32"
+				"-lgdi32",
+				"-lcomdlg32"
 			],
 			"options": {
 				"cwd": "${workspaceFolder}\\build\\release"
