@@ -11,10 +11,9 @@
 #include <stdio.h>
 #include <windowsx.h>
 
-HBITMAP hbitmapToShow;
-LPWSTR textToShow;
-
+HBITMAP hbitmap;
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+void putInBuffer(HWND hwnd, LPWSTR filePath);
 void openFile(HWND hwnd);
 void getFromBuffer(HWND hwnd);
 
@@ -50,8 +49,8 @@ int APIENTRY WinMain(HINSTANCE hInstance,
         NULL       // Additional application data
     );
 
-    HWND buttonPut = CreateWindow(L"BUTTON", L"Put in clipboard", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 10, 10, 200, 100, hwnd, (HMENU)WM_COMMAND_PUT, hInstance, NULL);
-    HWND buttonGet = CreateWindow(L"BUTTON", L"Get from clipboard", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 10, 110, 200, 100, hwnd, (HMENU)WM_COMMAND_GET, hInstance, NULL);
+    HWND buttonPut = CreateWindow(L"BUTTON", L"Press me", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 10, 10, 200, 100, hwnd, (HMENU)WM_COMMAND_PUT, hInstance, NULL);
+    HWND buttonGet = CreateWindow(L"BUTTON", L"Press me", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 10, 110, 200, 100, hwnd, (HMENU)WM_COMMAND_GET, hInstance, NULL);
 
     if (hwnd == NULL)
     {
@@ -89,6 +88,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         {
             openFile(hwnd);
             InvalidateRect(hwnd, NULL, TRUE);
+            putInBuffer(hwnd, NULL);
         }
         else if (LOWORD(wParam) == WM_COMMAND_GET)
         {
@@ -105,9 +105,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         hdc = BeginPaint(hwnd, &ps);
 
         hdcMem = CreateCompatibleDC(hdc);
-        oldBitmap = SelectObject(hdcMem, hbitmapToShow);
+        oldBitmap = SelectObject(hdcMem, hbitmap);
 
-        GetObject(hbitmapToShow, sizeof(bitmap), &bitmap);
+        GetObject(hbitmap, sizeof(bitmap), &bitmap);
         BitBlt(hdc, 200, 200, bitmap.bmWidth, bitmap.bmHeight, hdcMem, 0, 0, SRCCOPY);
 
         SelectObject(hdcMem, oldBitmap);
@@ -129,6 +129,16 @@ void ClientDraw(HWND hwnd, WPARAM wParam, LPARAM lPara)
     EndPaint(hwnd, &ps);
 }
 
+void putInBuffer(HWND hwnd, LPWSTR filePath)
+{
+
+    OpenClipboard(hwnd);
+    EmptyClipboard();
+
+    SetClipboardData(CF_BITMAP, hbitmap);
+    CloseClipboard();
+}
+
 void openFile(HWND hwnd) {
     OPENFILENAMEW ofn;       // common dialog box structure
     TCHAR szFile[260] = { 0 };       // if using TCHAR macros
@@ -139,56 +149,67 @@ void openFile(HWND hwnd) {
     ofn.hwndOwner = hwnd;
     ofn.lpstrFile = szFile;
     ofn.nMaxFile = sizeof(szFile);
-    ofn.lpstrCustomFilter = L"Bitmap\0*.bmp\0Text\0*.txt\0";
+    ofn.lpstrCustomFilter = L"Bitmap\0*.bmp\0";
     ofn.nFilterIndex = 1;
     ofn.lpstrFileTitle = NULL;
     ofn.nMaxFileTitle = 0;
     ofn.lpstrInitialDir = NULL;
     ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+
     if (GetOpenFileNameW(&ofn) == TRUE)
     {
-        OpenClipboard(hwnd);
-        EmptyClipboard();
-
-        char extension[4];
-        wcstombs(extension, ofn.lpstrFile + (int) ofn.nFileExtension, 3);
-
-        if (strcmp(extension, "bmp") == 0) {
-            HBITMAP hbitmap = (HBITMAP)LoadImageW(GetModuleHandle(NULL), ofn.lpstrFile, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
-            SetClipboardData(CF_BITMAP, hbitmap);
-        }
-        else if (strcmp(extension, "txt") == 0){
-            wchar_t   readBuffer[1025] = {0};
-            HFILE hFile = CreateFileW(ofn.lpstrFile,                // name of the write
-                       GENERIC_READ,          // open for writing
-                       FILE_SHARE_READ,                      // do not share
-                       NULL,                   // default security
-                       OPEN_EXISTING,             // create new file only
-                       FILE_ATTRIBUTE_NORMAL,  // normal file
-                       NULL);                  // 
-            ReadFile(hFile, readBuffer, 1024, NULL, NULL);
-            HGLOBAL hGl; 
-            hGl = GlobalAlloc(GMEM_DDESHARE, strlen(readBuffer) + 1);
-            LPVOID* ptr = (char *) GlobalLock(hGl);
-            memcpy(ptr, readBuffer, strlen(readBuffer) + 1);
-            GlobalUnlock(hGl); 
-            SetClipboardData(CF_TEXT, hGl);
-        }
-        CloseClipboard();
+        hbitmap = (HBITMAP)LoadImageW(GetModuleHandle(NULL), ofn.lpstrFile, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
+        return ofn.lpstrFile;
     }
+
+    return NULL;
 }
 
 void getFromBuffer(HWND hwnd)
 {
-    
     OpenClipboard(hwnd);
-    if (IsClipboardFormatAvailable(CF_BITMAP)) {
-        hbitmapToShow = (HBITMAP)GetClipboardData(CF_BITMAP);
-    } else if (IsClipboardFormatAvailable(CF_TEXT)) {
-        HANDLE hData = GetClipboardData(CF_TEXT);
-        MessageBoxA(hwnd, hData, L"test", MB_OK);
-
-    }
-
+    hbitmap = (HBITMAP)GetClipboardData(CF_BITMAP);
+    CloseClipboard();
     InvalidateRect(hwnd, NULL, TRUE);
+
+    // if (OpenClipboard(hwnd))
+    // {
+    //     UINT format = RegisterClipboardFormat(L"MyClipboardData");
+    //     //вызываем второй раз, чтобы просто получить формат
+    //     if (IsClipboardFormatAvailable(format))
+    //     {
+    //         MyClipboardData MCD;
+    //         //извлекаем данные из буфера
+    //         HANDLE hData = GetClipboardData(format);
+    //         MyClipboardData *buffer = (MyClipboardData *)GlobalLock(hData);
+    //         //заполняем нашу структуру полученными данными
+    //         MCD = *buffer;
+    //         GlobalUnlock(hData);
+    //         CloseClipboard();
+
+    //         RECT rect;
+    //         PAINTSTRUCT ps;
+    //         GetClientRect(hwnd, &rect);
+    //         // MessageBoxA(hwnd, MCD.InfData, L"Data", MB_OK);
+    //         BITMAPFILEHEADER *bFileHeader = (BITMAPFILEHEADER *)MCD.InfData;
+    //         BITMAPINFO *bInfo = (BITMAPINFO *)((char *)MCD.InfData + 14);
+            
+    //         HDC hdc = BeginPaint(hwnd, &ps);
+    //         HBITMAP hBmpFile = CreateDIBitmap(hdc, &(bInfo->bmiHeader),
+    //                                           CBM_INIT, (char *)MCD.InfData + bFileHeader->bfOffBits,
+    //                                           bInfo, DIB_PAL_COLORS);
+    //         HDC hMemDC = CreateCompatibleDC(hdc);
+    //         SelectObject(hMemDC, hBmpFile);
+    //         StretchBlt(hdc, 0, 0, rect.right, rect.bottom, hMemDC,
+    //                    0, 0, bInfo->bmiHeader.biWidth, bInfo->bmiHeader.biHeight,
+    //                    SRCCOPY);
+    //         ReleaseDC(hdc, hdc);
+    //         DeleteDC(hMemDC);
+    //         DeleteObject(hBmpFile);
+
+    //         hbitmap = hBmpFile;
+    //         InvalidateRect(hwnd, NULL, TRUE);
+    //     }
+    // }
+    // CloseClipboard();
 }
