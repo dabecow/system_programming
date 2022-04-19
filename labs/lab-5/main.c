@@ -152,8 +152,7 @@ void openFile(HWND hwnd) {
 
         char extension[4];
         wcstombs(extension, ofn.lpstrFile + (int) ofn.nFileExtension, 3);
-        // strncat(extension, ofn.lpstrFile + (int) ofn.nFileExtension, 3);
-        // memcpy(extension, , 3);
+
         if (strcmp(extension, "bmp") == 0) {
             HBITMAP hbitmap = (HBITMAP)LoadImageW(GetModuleHandle(NULL), ofn.lpstrFile, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE);
             SetClipboardData(CF_BITMAP, hbitmap);
@@ -174,13 +173,9 @@ void openFile(HWND hwnd) {
             memcpy(ptr, readBuffer, strlen(readBuffer) + 1);
             GlobalUnlock(hGl); 
             SetClipboardData(CF_TEXT, hGl);
-            // MessageBoxA(hwnd, ptr, L"test", MB_OK);
         }
         CloseClipboard();
-        return ofn.lpstrFile;
     }
-
-    return NULL;
 }
 
 void getFromBuffer(HWND hwnd)
