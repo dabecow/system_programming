@@ -1,0 +1,64 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Init",
+			"type": "shell",
+			"linux": {
+				"command": "mkdir -p ./build/release"
+			},
+			"windows": {
+				"command": "cmd",
+				"args": ["/C", "mkdir .\\build\\release"]
+			}
+		},
+		{
+			"type": "shell",
+			"label": "Compile",
+			"command": "C:\\msys64\\mingw64\\bin\\gcc.exe",
+			"args": [
+				"-g",
+				"-c",
+				"${file}",
+				"-o",
+				"${fileDirname}\\build\\${fileBasenameNoExtension}.o"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			}
+		},
+		{
+			"type": "shell",
+			"label": "Linker",
+			"command": "C:\\msys64\\mingw64\\bin\\gcc.exe",
+			"args": [
+				"-o",
+				"${fileBasenameNoExtension}",
+				"${fileDirname}\\build\\${fileBasenameNoExtension}.o",
+				"-L.",
+				"-lgdi32",
+				"-lcomdlg32"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}\\build\\release"
+			}
+		},
+		{
+            "label": "Build GCC",
+            "dependsOrder": "sequence",
+			"dependsOn":["Clear", "Init", "Compile", "Linker"],
+			"group": "build"
+        },
+		{
+            "type": "shell",
+            "label": "Clear",
+            "command": "Remove-Item",
+            "args": [
+				"${fileDirname}\\build",
+				"-Recurse",
+				"-Force",
+				"-Confirm:$false"
+            ]
+        }
+	]
+}
