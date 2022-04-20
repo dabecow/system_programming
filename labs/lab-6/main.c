@@ -87,23 +87,23 @@ int APIENTRY WinMain(HINSTANCE hInstance,
         TrackBarThread, //определяет адрес потоковой функции 
         &first, // указатель на аргумент потоковой функции 
         CREATE_SUSPENDED, // поток остановлен 
-        /*&dwThreadId[0]*/ NULL);
+        NULL);
     
     hThread[1] = CreateThread(
-        NULL, // указатель на структуру SECURITY_ATTRIBUTES
-        0, // определяет размер стека по умолчанию 
-        TrackBarThread, //определяет адрес потоковой функции 
-        &second, // указатель на аргумент потоковой функции 
-        CREATE_SUSPENDED, // поток остановлен 
-        /*&dwThreadId[0]*/ NULL);
+        NULL, 
+        0, 
+        TrackBarThread, 
+        &second, 
+        CREATE_SUSPENDED,
+        NULL);
 
     hThread[2] = CreateThread(
-        NULL, // указатель на структуру SECURITY_ATTRIBUTES
-        0, // определяет размер стека по умолчанию 
-        TrackBarThread, //определяет адрес потоковой функции 
-        &third, // указатель на аргумент потоковой функции 
-        CREATE_SUSPENDED, // поток остановлен 
-        /*&dwThreadId[0]*/ NULL);
+        NULL,
+        0, 
+        TrackBarThread, 
+        &third, 
+        CREATE_SUSPENDED,
+        NULL);
     
     if (hwnd == NULL)
     {
